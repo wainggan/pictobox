@@ -16,6 +16,13 @@
  */
 export default class StreamIn {
 	private buffer: Buffer;
+
+	/**
+	 * "Seek pointer". Must satisfy `0 <= this.pos <= this.size() - 1`.
+	 * 
+	 * @see {@link skip()}
+	 * @see {@link seek()}
+	 */
 	public pos: number;
 
 	/**
