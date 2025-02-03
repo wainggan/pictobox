@@ -8,6 +8,10 @@ import StreamOut from '@/stream-out';
 
 // TODO - TSDoc comments
 
+/**
+ * Representation of a BMP pixel.
+ * `quad` goes unused.
+ */
 type Pixel = {
 	blue: number;
 	green: number;
@@ -15,25 +19,111 @@ type Pixel = {
 	quad: number; // * The BMP color palette is an array of RGBQUAD values, where the QUAD is reserved
 };
 
+/**
+ * Implementation of the BMP image format.
+ * 
+ * See: {@link https://en.wikipedia.org/wiki/BMP_file_format}
+ */
 export default class BMP {
 	private readStream: StreamIn;
 	private writeStream: StreamOut;
 
 	private dataOffset: number;
+
+	/**
+	 * Width of the image in pixels.
+	 * @default 0
+	 */
 	public width: number;
+
+	/**
+	 * Height of the image in pixels.
+	 * @default 0
+	 */
 	public height: number;
+
+	/**
+	 * Number of color planes. Must be `1`.
+	 * @default 1
+	 * @see https://devblogs.microsoft.com/oldnewthing/20041201-00/?p=37163
+	 */
 	public planes: number;
+
+	/**
+	 * Size of BMP header to use.
+	 * The only supported header size currently is `40` (BMP.InfoHeaderTypes.BITMAPINFOHEADER)
+	 */
 	public infoHeaderType: number;
+
+	/**
+	 * Number of bits per pixel. 
+	 * The only supported density currently is `1` (BMP.PixelDensities.Monochrome).
+	 * @default 0
+	 * @see {@link PixelDensities}
+	 */
 	public pixelDensity: number;
+
+	/**
+	 * Amount of colors available.
+	 */
 	public paletteColorCount: number;
+
+	/**
+	 * Type of compression to use.
+	 * Currently unsupported.
+	 * @see {@link CompressionTypes}
+	 * @default 0
+	 */
 	public compressionType: number;
+
+	/**
+	 * Size of the uncompressed image. Valid to use `0` if image is uncompressed.
+	 * @see {@link compressionType}
+	 * @default 0
+	 */
 	public compressedImageSize: number;
+
+	/**
+	 * X pixels per meter.
+	 * @default 0
+	 */
 	public horizontalResolution: number;
+
+	/**
+	 * Y pixels per meter.
+	 * @default 0
+	 */
 	public verticalResolution: number;
+
+	/**
+	 * Number of used colors. `0` to default to `2^n`.
+	 * @default 0
+	 */
 	private usedColors: number;
+	
+	/**
+	 * Number of "important colors". `0` to default to 'all'.
+	 * @default 0
+	 */
 	public importantColors: number;
+
+	/**
+	 * Chosen color palette. Only relevant when `this.pixelDensity` is either `4` or `8`.
+	 */
 	public palette: Pixel[];
+
+	/**
+	 * Pixel data.
+	 * The first array level is the Y axis, the second array level is the X axis,
+	 * and the third array level is an individual pixel in the form of [B, G, R, QUAD].
+	 */
 	public scanlines: number[][][];
+
+	/**
+	 * Whether the image is encoded with the Y axis
+	 * bottom-to-top (`true`) or top-to-bottom (`false`).
+	 * @default true
+	 */
 	public bottomUp = true;
 
 	static Magic = Buffer.from('BM');
@@ -72,6 +162,11 @@ export default class BMP {
 		BITMAPV5HEADER:     124  // * Windows NT 5.0, 98 or later. Adds ICC color profiles
 	};
 
+	/**
+	 * Creates an uninitialized BMP object. 
+	 * 
+	 * @see {@link parseFromBuffer()}
+	 */
 	constructor() {
 		this.dataOffset = 0;
 		this.width = 0;
@@ -150,6 +245,19 @@ export default class BMP {
 		}
 	}
 
+	/**
+	 * Initializes the BMP object.
+	 * 
+	 * @example
+	 * 
+	 * ```
+	 * const buffer = fs.readFileSync("./image.bmp");
+	 * const bmp = new BMP();
+	 * bmp.parseFromBuffer(buffer);
+	 * ```
+	 * 
+	 * @param buffer Buffer of BMP data to use.
+	 */
 	public parseFromBuffer(buffer: Buffer): void {
 		this.readStream = new StreamIn(buffer);
 		this.parse();
@@ -295,6 +403,16 @@ export default class BMP {
 		}
 	}
 
+	/**
+	 * Creates a new buffer of BMP data.
+	 * 
+	 * ```
+	 * const image = bmp.encode();
+	 * fs.writeFileSync('./image.bmp', image);
+	 * ```
+	 * 
+	 * @returns Buffer.
+	 */
 	public encode(): Buffer {
 		this.writeStream = new StreamOut();
 
@@ -438,6 +556,11 @@ export default class BMP {
 		}
 	}
 
+	/**
+	 * Creates an array of raw pixels, such that `[B, G, R, ...]`.
+	 * 
+	 * @returns Array of pixels.
+	 */
 	public pixelsBGR(): number[] {
 		const scanlines = [...this.scanlines];
 
@@ -451,6 +574,12 @@ export default class BMP {
 		return final.flat(Infinity) as number[]; // TODO - Can this "as" be removed?
 	}
 
+	/**
+	 * Creates an array of raw pixels, such that `[B, G, R, QUAD, ...]`.
+	 * "QUAD" is unused.
+	 * 
+	 * @returns Array of pixels.
+	 */
 	public pixelsBGRQUAD(): number[] {
 		const scanlines = [...this.scanlines];
 
@@ -461,6 +590,11 @@ export default class BMP {
 		return scanlines.flat(Infinity) as number[]; // TODO - Can this "as" be removed?
 	}
 
+	/**
+	 * Creates an array of raw pixels, such that `[R, G, B, ...]`.
+	 * 
+	 * @returns Array of pixels.
+	 */
 	public pixelsRGB(): number[] {
 		const scanlines = [...this.scanlines];
 
@@ -480,6 +614,12 @@ export default class BMP {
 		return final.flat(Infinity) as number[]; // TODO - Can this "as" be removed?
 	}
 
+	/**
+	 * Creates an array of raw pixels, such that `[R, G, B, QUAD, ...]`.
+	 * "QUAD" is unused.
+	 * 
+	 * @returns Array of pixels.
+	 */
 	public pixelsRGBQUAD(): number[] {
 		const scanlines = [...this.scanlines];
 
